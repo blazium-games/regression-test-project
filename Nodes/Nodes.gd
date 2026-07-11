@@ -26,22 +26,10 @@ var classes: Array = []
 var debug_enabled: bool = false
 
 
-func _is_blazium_unsafe_class(name_of_class: String) -> bool:
-	return (
-		name_of_class.begins_with("JustAMCP")
-		or name_of_class.begins_with("Lua")
-		or name_of_class.begins_with("AssetTag")
-		or name_of_class.begins_with("Semantic")
-		or name_of_class.begins_with("Embedding")
-	)
-
-
 # Collects all classes which will be used
 func collect() -> void:
 	for name_of_class in ClassDB.get_class_list():
 		if name_of_class in disabled_classes:
-			continue
-		if _is_blazium_unsafe_class(name_of_class):
 			continue
 		if !ClassDB.can_instantiate(name_of_class):
 			continue

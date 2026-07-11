@@ -245,30 +245,6 @@ var disabled_classes: Array = [
 	"ColorPickerButton",
 	"PhysicalSkyMaterial",
 	"ProceduralSkyMaterial",
-	###
-	### Blazium-specific: need live editor/runtime state; default-constructed instances crash or hang the fuzzer
-	###
-	"LuaDebug",
-	"LuaVM",
-	"LuaScript",
-	"LuaCompileOptions",
-	"JustAMCPServer",
-	"JustAMCPRuntime",
-	"JustAMCPToolExecutor",
-	"JustAMCPTaskManager",
-	"JustAMCPMCPClientBridge",
-	"JustAMCPToolsetRegistry",
-	"JustAMCPToolCategoryBridge",
-	"AssetTagManager",
-	"AssetTagRegistry",
-	"AssetTagCoordinator",
-	"AssetTagRuntime",
-	"SemanticAssetIndex",
-	"SemanticAsyncSearchWorker",
-	"SemanticAsyncEmbedWorker",
-	"SemanticSearchBackend",
-	"LexicalTagBackend",
-	"EmbeddingBackend",
 ]
 
 
@@ -286,7 +262,7 @@ func check_if_is_allowed(method_data: Dictionary) -> bool:
 		if name_of_class in disabled_classes:
 			return false
 
-		if !name_of_class.is_empty() && !ClassDB.is_parent_class(name_of_class, "Node") && !ClassDB.is_parent_class(name_of_class, "RefCounted"):
+		if !name_of_class.is_empty() && !ClassDB.is_parent_class(name_of_class, "Node") && !ClassDB.is_parent_class(name_of_class, "RefCounted") && !_is_blazium_class(name_of_class):
 			return false
 
 		if name_of_class.find("Editor") != -1 || name_of_class.find("SkinReference") != -1:
@@ -360,6 +336,20 @@ func remove_disabled_methods(method_list: Array, exceptions: Array) -> Array:
 	return new_list
 
 
+func _is_blazium_class(name_of_class: String) -> bool:
+	return (
+		name_of_class.begins_with("JustAMCP")
+		or name_of_class.begins_with("Lua")
+		or name_of_class.begins_with("Luau")
+		or name_of_class.begins_with("AssetTag")
+		or name_of_class.begins_with("Semantic")
+		or name_of_class.begins_with("Embedding")
+		or name_of_class == "LexicalTagBackend"
+		or name_of_class.begins_with("HTTPRequestContext")
+		or name_of_class.begins_with("HTTPResponse")
+	)
+
+
 # Return all available classes which can be used
 func get_list_of_available_classes(must_be_instantable: bool = true) -> Array:
 	var full_class_list: Array = Array(ClassDB.get_class_list())
@@ -375,25 +365,14 @@ func get_list_of_available_classes(must_be_instantable: bool = true) -> Array:
 		if name_of_class in disabled_classes:
 			continue
 
-		# Blazium modules expose many ClassDB types that are unsafe to fuzz without a live session.
-		if (
-			name_of_class.begins_with("JustAMCP")
-			or name_of_class.begins_with("Lua")
-			or name_of_class.begins_with("AssetTag")
-			or name_of_class.begins_with("Semantic")
-			or name_of_class.begins_with("Embedding")
-			or name_of_class == "LexicalTagBackend"
-			or name_of_class.begins_with("HTTPServer")
-			or name_of_class.begins_with("HTTPRequest")
-			or name_of_class.begins_with("HTTPResponse")
-		):
+		var is_node: bool = ClassDB.is_parent_class(name_of_class, "Node")
+		var is_refcounted: bool = ClassDB.is_parent_class(name_of_class, "RefCounted")
+		# Blazium modules register many Object (non-RefCounted) tool/runtime types; include them for full coverage.
+		var is_blazium_object: bool = _is_blazium_class(name_of_class) and ClassDB.is_parent_class(name_of_class, "Object")
+		if !is_node and !is_refcounted and !is_blazium_object:
 			continue
-
-		#This is only for RegressionTestProject, because it needs for now clear visual info what is going on screen, but some nodes broke view
-		if !ClassDB.is_parent_class(name_of_class, "Node") && !ClassDB.is_parent_class(name_of_class, "RefCounted"):
-			continue
-		# Don't test Servers objects like TranslationServer
-		if name_of_class.find("Server") != -1:
+		# Don't test Servers objects like TranslationServer; JustAMCPServer is an intentional Blazium exception.
+		if name_of_class.find("Server") != -1 and name_of_class != "JustAMCPServer":
 			continue
 		# Don't test Editor nodes
 		if name_of_class.find("Editor") != -1:
